@@ -1,0 +1,27 @@
+name: Create Signing Key
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-key:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create permanent keystore
+        run: |
+          keytool -genkeypair \
+            -keystore xflow-release.jks \
+            -storepass XFlow@2026Key \
+            -keypass XFlow@2026Key \
+            -alias xflow \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=XFlow, OU=XFlow, O=XFlow, L=Panipat, ST=Haryana, C=IN"
+
+      - name: Upload signing key
+        uses: actions/upload-artifact@v4
+        with:
+          name: xflow-signing-key
+          path: xflow-release.jks
