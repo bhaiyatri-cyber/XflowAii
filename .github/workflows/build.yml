@@ -1,4 +1,4 @@
-name: Build Signed APK
+name: Build Permanent Signed APK
 
 on:
   push:
@@ -10,40 +10,39 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Unzip project
         run: |
           rm -rf extracted
           mkdir -p extracted
 
-          ZIPFILE=$(find . -maxdepth 1 -type f -name "*.zip" | head -n 1)
+          ZIPFILE=$(find . -maxdepth 1 -name "*.zip" | head -n 1)
 
           if [ -z "$ZIPFILE" ]; then
             echo "ERROR: ZIP file not found"
             exit 1
           fi
 
-          echo "Using ZIP: $ZIPFILE"
+          echo "ZIP found: $ZIPFILE"
           unzip -o "$ZIPFILE" -d extracted
 
-      - name: Find Android project
-        id: project
+      - name: Find project root
+        id: findroot
         run: |
-          SETTINGS=$(find extracted -type f \( -name "settings.gradle" -o -name "settings.gradle.kts" \) | head -n 1)
+          BUILD_FILE=$(find extracted -maxdepth 4 -name "settings.gradle*" | head -n 1)
 
-          if [ -z "$SETTINGS" ]; then
-            echo "ERROR: settings.gradle/settings.gradle.kts not found"
+          if [ -z "$BUILD_FILE" ]; then
+            echo "ERROR: Android project not found"
             exit 1
           fi
 
-          PROJECT_DIR=$(dirname "$SETTINGS")
+          PROJECT_DIR=$(dirname "$BUILD_FILE")
 
-          echo "Android project found at: $PROJECT_DIR"
-          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          echo "Found project at: $PROJECT_DIR"
+          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
 
-      - name: Setup Java 17
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           java-version: '17'
@@ -52,44 +51,39 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Restore Permanent Signing Key
-        working-directory: ${{ steps.project.outputs.dir }}
+      - name: Restore Permanent Keystore
+        working-directory: ${{ steps.findroot.outputs.project_dir }}
         run: |
           echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > xflow-release.jks
 
           if [ ! -s xflow-release.jks ]; then
-            echo "ERROR: Keystore could not be restored"
+            echo "ERROR: Permanent keystore restore failed"
             exit 1
           fi
 
-          echo "Permanent keystore restored successfully"
+          echo "Permanent keystore restored"
 
-      - name: Build Release APK
-        working-directory: ${{ steps.project.outputs.dir }}
-        run: gradle assembleRelease
+      - name: Build Debug APK
+        working-directory: ${{ steps.findroot.outputs.project_dir }}
+        run: gradle assembleDebug
 
-      - name: Find and Sign APK
-        working-directory: ${{ steps.project.outputs.dir }}
+      - name: Sign APK With Permanent Key
+        working-directory: ${{ steps.findroot.outputs.project_dir }}
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          APK=$(find . -path "*/build/outputs/apk/release/*.apk" -type f | head -n 1)
+          APK=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
 
           if [ -z "$APK" ]; then
-            echo "ERROR: Release APK not found"
+            echo "ERROR: APK not found"
             exit 1
           fi
 
           echo "APK found: $APK"
 
           BUILD_TOOLS=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
-
-          if [ -z "$BUILD_TOOLS" ]; then
-            echo "ERROR: Android Build Tools not found"
-            exit 1
-          fi
 
           "$BUILD_TOOLS/apksigner" sign \
             --ks xflow-release.jks \
@@ -101,11 +95,11 @@ jobs:
 
           "$BUILD_TOOLS/apksigner" verify --verbose XFlow-signed.apk
 
-          echo "APK signed successfully"
+          echo "Permanent signed APK created successfully"
 
-      - name: Upload Signed APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: XFlow-Signed-APK
-          path: ${{ steps.project.outputs.dir }}/XFlow-signed.apk
+          name: XFlow-Permanent-Signed
+          path: ${{ steps.findroot.outputs.project_dir }}/XFlow-signed.apk
           if-no-files-found: error
