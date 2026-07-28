@@ -9,6 +9,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -53,7 +56,6 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # Permanent keystore from GitHub Secret
       - name: Restore Permanent Keystore
         working-directory: ${{ steps.findroot.outputs.project_dir }}
         env:
@@ -68,7 +70,6 @@ jobs:
 
           echo "Permanent keystore restored successfully"
 
-      # Project requires debug.keystore during assembleDebug
       - name: Generate Debug Keystore
         working-directory: ${{ steps.findroot.outputs.project_dir }}
         run: |
@@ -95,8 +96,7 @@ jobs:
         id: findapk
         working-directory: ${{ steps.findroot.outputs.project_dir }}
         run: |
-          APK=$(find app/build/outputs/apk/debug -name "*.apk" \
-            -type f | head -n 1)
+          APK=$(find app/build/outputs/apk/debug -name "*.apk" -type f | head -n 1)
 
           if [ -z "$APK" ]; then
             echo "ERROR: APK not found"
@@ -106,12 +106,10 @@ jobs:
           echo "Found APK: $APK"
           echo "apk=$APK" >> "$GITHUB_OUTPUT"
 
-      # Get Android build-tools for apksigner
       - name: Find APK Signer
         id: signer
         run: |
-          APKSIGNER=$(find "$ANDROID_HOME/build-tools" \
-            -name apksigner -type f | sort -V | tail -n 1)
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
 
           if [ -z "$APKSIGNER" ]; then
             echo "ERROR: apksigner not found"
@@ -121,7 +119,6 @@ jobs:
           echo "Using: $APKSIGNER"
           echo "apksigner=$APKSIGNER" >> "$GITHUB_OUTPUT"
 
-      # Replace debug signature with permanent release signature
       - name: Sign APK With Permanent Key
         working-directory: ${{ steps.findroot.outputs.project_dir }}
         env:
