@@ -9,9 +9,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    env:
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,7 +22,6 @@ jobs:
             exit 1
           fi
 
-          echo "Found ZIP: $ZIPFILE"
           rm -rf extracted
           mkdir -p extracted
           unzip -o "$ZIPFILE" -d extracted
@@ -43,8 +39,6 @@ jobs:
           fi
 
           PROJECT_DIR=$(dirname "$BUILD_FILE")
-
-          echo "Found project at: $PROJECT_DIR"
           echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
 
       - name: Set up JDK 17
@@ -68,8 +62,6 @@ jobs:
             exit 1
           fi
 
-          echo "Permanent keystore restored successfully"
-
       - name: Generate Debug Keystore
         working-directory: ${{ steps.findroot.outputs.project_dir }}
         run: |
@@ -85,12 +77,12 @@ jobs:
             -validity 10000 \
             -dname "CN=Android Debug,O=Android,C=US"
 
-          echo "Debug keystore generated successfully"
-
       - name: Build Debug APK
         working-directory: ${{ steps.findroot.outputs.project_dir }}
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          gradle assembleDebug --stacktrace
+          gradle assembleDebug --stacktrace -PGEMINI_API_KEY="$GEMINI_API_KEY"
 
       - name: Find APK
         id: findapk
@@ -103,7 +95,6 @@ jobs:
             exit 1
           fi
 
-          echo "Found APK: $APK"
           echo "apk=$APK" >> "$GITHUB_OUTPUT"
 
       - name: Find APK Signer
@@ -116,7 +107,6 @@ jobs:
             exit 1
           fi
 
-          echo "Using: $APKSIGNER"
           echo "apksigner=$APKSIGNER" >> "$GITHUB_OUTPUT"
 
       - name: Sign APK With Permanent Key
@@ -137,8 +127,6 @@ jobs:
             "$APK"
 
           "$APKSIGNER" verify --verbose --print-certs XFlow-signed.apk
-
-          echo "APK signed successfully"
 
       - name: Upload Signed APK
         uses: actions/upload-artifact@v4
