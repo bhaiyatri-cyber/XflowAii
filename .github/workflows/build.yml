@@ -140,7 +140,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: XFlow AI v${{ github.run_number }}
+          name: XFlow v${{ github.run_number }}
           files: ${{ steps.findroot.outputs.project_dir }}/XFlow-signed.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
