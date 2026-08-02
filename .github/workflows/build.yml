@@ -136,11 +136,18 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Get Version Code
+        id: version
+        working-directory: ${{ steps.findroot.outputs.project_dir }}
+        run: |
+          VERSION_CODE=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle.kts)
+          echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ github.run_number }}
-          name: XFlow v${{ github.run_number }}
+          tag_name: v${{ steps.version.outputs.code }}
+          name: XFlow v${{ steps.version.outputs.code }}
           files: ${{ steps.findroot.outputs.project_dir }}/XFlow-signed.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
